@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Admin Panel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+    font-family: Arial;
+    text-align:center;
+    background:#f4f6f9;
+}
+
+h2 {
+    margin-top:20px;
+}
+
+table {
+    margin:auto;
+    border-collapse: collapse;
+    margin-top:20px;
+    width:80%;
+}
+
+td, th {
+    border:1px solid #333;
+    padding:10px;
+}
+
+button {
+    margin:10px;
+    padding:10px 20px;
+    background:#4facfe;
+    color:white;
+    border:none;
+    border-radius:5px;
+    cursor:pointer;
+}
+
+button:hover {
+    background:#007bff;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Admin Panel</h2>
+
+<button onclick="logout()">Logout</button>
+
+<table id="table">
+<tr>
+<th>Username</th>
+<th>Encrypted Password</th>
+</tr>
+</table>
+
+<script>
+// 🔐 PROTECT ADMIN PAGE
+fetch('/session')
+.then(res => res.json())
+.then(data => {
+    if (!data.loggedIn || data.role !== "admin") {
+        window.location = "login.html";
+    } else {
+        loadUsers();
+    }
+});
+
+// 📊 LOAD USERS
+function loadUsers(){
+    fetch('/users')
+    .then(res => res.json())
+    .then(data => {
+        let table = document.getElementById("table");
+
+        data.forEach(user => {
+            let row = table.insertRow();
+            row.insertCell(0).innerText = user.username;
+            row.insertCell(1).innerText = user.password;
+        });
+    });
+}
+
+// 🚪 LOGOUT
+function logout(){
+    fetch('/logout')
+    .then(() => {
+        window.location = "login.html";
+    });
+}
+</script>
+
+</body>
+</html>

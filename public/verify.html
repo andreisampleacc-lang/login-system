@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Verification</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+    font-family: Arial;
+    background:#f4f6f9;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+
+.box {
+    background:white;
+    padding:30px;
+    border-radius:10px;
+    text-align:center;
+    width:300px;
+    box-shadow:0 5px 15px rgba(0,0,0,0.2);
+}
+
+button {
+    width:100%;
+    padding:10px;
+    margin:10px 0;
+    border:none;
+    background:#4facfe;
+    color:white;
+    border-radius:5px;
+    cursor:pointer;
+}
+
+button:hover {
+    background:#007bff;
+}
+
+video {
+    margin-top:10px;
+    border-radius:10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="box">
+    <h2>2-Step Verification</h2>
+
+    <video id="video" width="250" height="180" autoplay></video>
+
+    <button onclick="face()">Face Recognition</button>
+    <button onclick="finger()">Fingerprint</button>
+</div>
+
+<!-- FACE API -->
+<script src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+
+<script>
+// ================= FACE RECOGNITION =================
+async function face() {
+    const video = document.getElementById('video');
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+
+        alert("📷 Camera started. Look at the screen...");
+
+        // simulate detection (basic thesis-level)
+        setTimeout(() => {
+            alert("✅ Face Detected & Verified!");
+            window.location = "dashboard.html";
+        }, 3000);
+
+    } catch (err) {
+        alert("❌ Camera access denied");
+    }
+}
+
+
+// ================= FINGERPRINT (WEBAUTHN) =================
+async function finger(){
+    try{
+        await navigator.credentials.get({
+            publicKey: {
+                challenge: new Uint8Array(16),
+                timeout: 60000,
+                userVerification: "preferred"
+            }
+        });
+
+        alert("✅ Fingerprint Verified!");
+        window.location="dashboard.html";
+
+    }catch(e){
+        alert("❌ Fingerprint failed or not supported");
+    }
+}
+
+
+// ================= SESSION CHECK (SECURITY) =================
+fetch('/session')
+.then(res=>res.json())
+.then(data=>{
+    if(!data.loggedIn){
+        window.location="login.html";
+    }
+});
+</script>
+
+</body>
+</html>

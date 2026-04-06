@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+    font-family: Arial;
+    background: linear-gradient(135deg,#4facfe,#00f2fe);
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+.box {
+    background:white;
+    padding:30px;
+    border-radius:10px;
+    width:300px;
+    text-align:center;
+}
+input {
+    width:90%;
+    padding:10px;
+    margin:10px;
+}
+button {
+    width:95%;
+    padding:10px;
+    margin-top:10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="box">
+<h2>Login / Sign Up</h2>
+
+<input id="username" placeholder="Username">
+<input id="password" type="password" placeholder="Password">
+
+<button onclick="login()">Login</button>
+<button onclick="signup()">Sign Up</button>
+</div>
+
+<script>
+async function login() {
+    const res = await fetch('/login', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+            username: username.value,
+            password: password.value
+        })
+    });
+
+    const data = await res.json();
+
+    if(data.success){
+        localStorage.setItem("user", username.value);
+
+        if(data.role === "admin"){
+            window.location="admin.html";
+        } else {
+            window.location="verify.html";
+        }
+    } else {
+        alert("Invalid login");
+    }
+}
+
+async function signup() {
+    const res = await fetch('/signup', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+            username: username.value,
+            password: password.value
+        })
+    });
+
+    const data = await res.json();
+
+    if(data.success){
+        alert("Account created!");
+    } else {
+        alert("Signup failed");
+    }
+}
+</script>
+
+</body>
+</html>

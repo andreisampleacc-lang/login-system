@@ -1,0 +1,23 @@
+{
+  "name": "login-system",
+  "version": "1.0.0",
+  "description": "Thesis Login System with Face Recognition, Fingerprint, and Caesar Cipher",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "login-system",
+    "thesis",
+    "nodejs",
+    "biometrics",
+    "caesar-cipher"
+  ],
+  "author": "Your Name",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.19.2",
+    "mysql2": "^3.10.0",
+    "express-session": "^1.17.3"
+  }
+}
