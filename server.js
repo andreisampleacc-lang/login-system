@@ -5,36 +5,34 @@ const session = require('express-session');
 
 const app = express();
 
-// ================= MIDDLEWARE =================
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ================= SESSION =================
+// SESSION
 app.use(session({
     secret: 'secret123',
     resave: false,
-    saveUninitialized: true,
-    cookie: { secure: false } // will still work on Render
+    saveUninitialized: true
 }));
 
-// ================= DATABASE (ENV READY) =================
+// DATABASE (RAILWAY READY)
 const db = mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASS || '',
-    database: process.env.DB_NAME || 'login_db'
+    host: process.env.DB_HOST || process.env.MYSQLHOST,
+    user: process.env.DB_USER || process.env.MYSQLUSER,
+    password: process.env.DB_PASS || process.env.MYSQLPASSWORD,
+    database: process.env.DB_NAME || process.env.MYSQLDATABASE,
+    port: process.env.MYSQLPORT || 3306
 });
 
-// ================= CONNECT DB =================
-db.connect((err) => {
+db.connect(err => {
     if (err) {
-        console.log("❌ DB Connection Failed:", err);
+        console.log("❌ DB Error:", err);
     } else {
-        console.log("✅ Connected to MySQL");
+        console.log("✅ Connected to Railway DB");
     }
 });
 
-// ================= CAESAR CIPHER =================
+// CAESAR
 function caesarEncrypt(text, shift = 3) {
     return text.split('').map(c => {
         if (/[a-z]/i.test(c)) {
@@ -45,7 +43,7 @@ function caesarEncrypt(text, shift = 3) {
     }).join('');
 }
 
-// ================= LOGIN =================
+// LOGIN
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
     const encrypted = caesarEncrypt(password, 3);
@@ -54,15 +52,9 @@ app.post('/login', (req, res) => {
         "SELECT * FROM users WHERE username=? AND password=?",
         [username, encrypted],
         (err, result) => {
-            if (err) {
-                console.log(err);
-                return res.json({ success: false });
-            }
-
-            if (result.length > 0) {
+            if (result && result.length > 0) {
                 req.session.user = username;
                 req.session.role = result[0].role;
-
                 res.json({ success: true, role: result[0].role });
             } else {
                 res.json({ success: false });
@@ -71,7 +63,7 @@ app.post('/login', (req, res) => {
     );
 });
 
-// ================= SIGNUP =================
+// SIGNUP
 app.post('/signup', (req, res) => {
     const { username, password } = req.body;
     const encrypted = caesarEncrypt(password, 3);
@@ -80,16 +72,13 @@ app.post('/signup', (req, res) => {
         "INSERT INTO users (username, password) VALUES (?, ?)",
         [username, encrypted],
         (err) => {
-            if (err) {
-                console.log(err);
-                return res.json({ success: false });
-            }
+            if (err) return res.json({ success: false });
             res.json({ success: true });
         }
     );
 });
 
-// ================= SESSION CHECK =================
+// SESSION CHECK
 app.get('/session', (req, res) => {
     if (req.session.user) {
         res.json({
@@ -102,36 +91,29 @@ app.get('/session', (req, res) => {
     }
 });
 
-// ================= ADMIN USERS =================
+// ADMIN USERS
 app.get('/users', (req, res) => {
     if (req.session.role !== 'admin') {
         return res.status(403).json([]);
     }
 
     db.query("SELECT username, password FROM users", (err, result) => {
-        if (err) {
-            console.log(err);
-            return res.json([]);
-        }
         res.json(result);
     });
 });
 
-// ================= LOGOUT =================
+// LOGOUT
 app.get('/logout', (req, res) => {
     req.session.destroy(() => {
         res.json({ success: true });
     });
 });
 
-// ================= DEFAULT ROUTE =================
+// HOME
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// ================= SERVER START =================
+// START
 const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log("🚀 Running on port " + PORT));
