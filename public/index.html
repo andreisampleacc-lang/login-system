@@ -1,33 +1,35 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Secure Login</title>
+<title>Biometric System</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
 
 <style>
 body {
     font-family: Arial;
     background: linear-gradient(135deg,#4facfe,#00f2fe);
-    height:100vh;
     display:flex;
     justify-content:center;
     align-items:center;
+    height:100vh;
 }
 .box {
     background:white;
-    padding:30px;
+    padding:20px;
     border-radius:10px;
-    width:300px;
     text-align:center;
-}
-input, button {
-    width:90%;
-    padding:10px;
-    margin:10px;
+    width:300px;
 }
 video {
     width:100%;
     border-radius:10px;
+}
+button,input {
+    margin:5px;
+    padding:10px;
+    width:90%;
 }
 </style>
 </head>
@@ -35,7 +37,7 @@ video {
 <body>
 
 <div class="box">
-<h2>Secure Login</h2>
+<h2>Biometric Login</h2>
 
 <input id="username" placeholder="Username">
 <input id="password" type="password" placeholder="Password">
@@ -45,92 +47,129 @@ video {
 
 <br><br>
 
-<video id="camera" autoplay></video>
-<button onclick="startCamera()">Start Face Scan</button>
-
+<video id="video" autoplay></video>
 </div>
 
 <script>
+
 // =======================
-// CAMERA (FACE SCAN)
+// LOAD FACE MODELS
+// =======================
+async function loadModels(){
+    await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+    await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
+    await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
+}
+loadModels();
+
+// =======================
+// CAMERA
 // =======================
 async function startCamera(){
-    const video = document.getElementById("camera");
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    const video = document.getElementById("video");
+    const stream = await navigator.mediaDevices.getUserMedia({ video:true });
     video.srcObject = stream;
 }
 
 // =======================
-// SIGNUP FLOW
+// CAPTURE FACE
+// =======================
+async function captureFace(){
+    const video = document.getElementById("video");
+
+    const detection = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+    if(!detection){
+        alert("No face detected!");
+        return null;
+    }
+
+    return Array.from(detection.descriptor);
+}
+
+// =======================
+// 🔥 FINGERPRINT (LOCAL SERVER)
+// =======================
+async function scanFingerprint(){
+    const res = await fetch('http://localhost:5000/scan-fingerprint');
+    const data = await res.json();
+
+    if(data.success){
+        alert("Fingerprint captured!");
+        return data.template;
+    } else {
+        alert("Fingerprint failed");
+        return null;
+    }
+}
+
+// =======================
+// SIGNUP
 // =======================
 async function signup(){
     const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
 
-    // STEP 1: Fingerprint (WebAuthn)
-    try {
-        await navigator.credentials.create({
-            publicKey: {
-                challenge: new Uint8Array(32),
-                rp: { name: "LoginSystem" },
-                user: {
-                    id: new Uint8Array(16),
-                    name: username,
-                    displayName: username
-                },
-                pubKeyCredParams: [{ type: "public-key", alg: -7 }]
-            }
-        });
-
-        alert("Fingerprint registered!");
-    } catch(e){
-        alert("Fingerprint failed");
+    if(!username || !password){
+        alert("Fill all fields");
         return;
     }
 
-    // STEP 2: Send to server
-    const res = await fetch('/signup', {
+    await startCamera();
+
+    // 🔐 Fingerprint
+    const fingerprint = await scanFingerprint();
+    if(!fingerprint) return;
+
+    // 📸 Face
+    const face = await captureFace();
+    if(!face) return;
+
+    // 📤 SEND TO SERVER
+    const res = await fetch('/signup',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password, fingerprint, face })
     });
 
     const data = await res.json();
 
     if(data.success){
-        alert("Signup complete with biometrics!");
+        alert("Signup complete!");
     } else {
         alert("Signup failed: " + data.error);
     }
 }
 
 // =======================
-// LOGIN FLOW
+// LOGIN
 // =======================
 async function login(){
     const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
 
-    // STEP 1: Fingerprint verify
-    try {
-        await navigator.credentials.get({
-            publicKey: {
-                challenge: new Uint8Array(32),
-                allowCredentials: []
-            }
-        });
-
-        alert("Fingerprint verified!");
-    } catch(e){
-        alert("Fingerprint failed");
+    if(!username || !password){
+        alert("Fill all fields");
         return;
     }
 
-    // STEP 2: normal login
-    const res = await fetch('/login', {
+    await startCamera();
+
+    // 🔐 Fingerprint
+    const fingerprint = await scanFingerprint();
+    if(!fingerprint) return;
+
+    // 📸 Face
+    const face = await captureFace();
+    if(!face) return;
+
+    const res = await fetch('/login',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password, fingerprint, face })
     });
 
     const data = await res.json();
@@ -138,9 +177,10 @@ async function login(){
     if(data.success){
         alert("Login success!");
     } else {
-        alert("Invalid login");
+        alert("Access denied: " + data.error);
     }
 }
+
 </script>
 
 </body>
