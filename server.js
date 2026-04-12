@@ -8,18 +8,14 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// SESSION (works on Render)
+// SESSION
 app.use(session({
     secret: 'secret123',
     resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: false,
-        sameSite: 'lax'
-    }
+    saveUninitialized: false
 }));
 
-// ✅ DATABASE (IMPORTANT: uses Render env vars)
+// DATABASE
 const db = mysql.createConnection({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -36,7 +32,7 @@ db.connect(err => {
     }
 });
 
-// 🔐 CAESAR
+// CAESAR
 function caesarEncrypt(text, shift = 3) {
     return text.split('').map(c => {
         if (/[a-z]/i.test(c)) {
@@ -47,7 +43,7 @@ function caesarEncrypt(text, shift = 3) {
     }).join('');
 }
 
-// 🔥 LOGIN (simple + reliable)
+// LOGIN
 app.post('/login', (req, res) => {
     let { username, password } = req.body;
 
@@ -75,14 +71,10 @@ app.post('/login', (req, res) => {
         );
 
         if (user) {
-            console.log("✅ LOGIN SUCCESS");
-
             req.session.user = user.username;
             req.session.role = user.role;
-
             return res.json({ success: true });
         } else {
-            console.log("❌ LOGIN FAILED");
             return res.json({ success: false });
         }
     });
@@ -91,10 +83,6 @@ app.post('/login', (req, res) => {
 // SIGNUP
 app.post('/signup', (req, res) => {
     let { username, password } = req.body;
-
-    if (!username || !password) {
-        return res.json({ success: false });
-    }
 
     username = username.trim();
     password = password.trim();
@@ -105,46 +93,26 @@ app.post('/signup', (req, res) => {
         "INSERT INTO users (username, password, role) VALUES (?, ?, 'user')",
         [username, encrypted],
         (err) => {
-            if (err) {
-                console.log("❌ SIGNUP ERROR:", err);
-                return res.json({ success: false });
-            }
-
-            console.log("✅ USER CREATED");
+            if (err) return res.json({ success: false });
             res.json({ success: true });
         }
     );
 });
 
-// ✅ TEST DB ROUTE (VERY IMPORTANT)
+// 🔥 TEST ROUTE 1
+app.get('/ping', (req, res) => {
+    res.send("SERVER WORKING");
+});
+
+// 🔥 TEST ROUTE 2 (DATABASE)
 app.get('/test-db', (req, res) => {
     db.query("SELECT * FROM users", (err, results) => {
         if (err) {
             console.log("❌ TEST DB ERROR:", err);
             return res.json({ error: err });
         }
-        console.log("📦 TEST DB RESULT:", results);
+        console.log("📦 TEST DB:", results);
         res.json(results);
-    });
-});
-
-// SESSION CHECK
-app.get('/session', (req, res) => {
-    if (req.session.user) {
-        res.json({
-            loggedIn: true,
-            user: req.session.user,
-            role: req.session.role
-        });
-    } else {
-        res.json({ loggedIn: false });
-    }
-});
-
-// LOGOUT
-app.get('/logout', (req, res) => {
-    req.session.destroy(() => {
-        res.json({ success: true });
     });
 });
 
