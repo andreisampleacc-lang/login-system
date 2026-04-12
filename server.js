@@ -8,18 +8,18 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 🔐 SESSION (fix for Render)
+// SESSION
 app.use(session({
     secret: 'secret123',
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: false, // keep false for now
+        secure: false,
         sameSite: 'lax'
     }
 }));
 
-// 🗄️ DATABASE
+// DATABASE CONNECTION
 const db = mysql.createConnection({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -36,7 +36,7 @@ db.connect(err => {
     }
 });
 
-// 🔐 CAESAR
+// CAESAR CIPHER
 function caesarEncrypt(text, shift = 3) {
     return text.split('').map(c => {
         if (/[a-z]/i.test(c)) {
@@ -47,11 +47,11 @@ function caesarEncrypt(text, shift = 3) {
     }).join('');
 }
 
-// 🔥 LOGIN (FIXED)
+// 🔥 LOGIN (FINAL WORKING)
 app.post('/login', (req, res) => {
     let { username, password } = req.body;
 
-    console.log("INPUT RAW:", req.body);
+    console.log("📥 RAW INPUT:", req.body);
 
     if (!username || !password) {
         return res.json({ success: false });
@@ -62,34 +62,44 @@ app.post('/login', (req, res) => {
 
     const encrypted = caesarEncrypt(password, 3);
 
-    console.log("CHECK:", username, encrypted);
+    console.log("🔐 CHECKING:", username, encrypted);
 
-    db.query(
-        "SELECT * FROM users WHERE username=? AND password=?",
-        [username, encrypted],
-        (err, result) => {
-            if (err) {
-                console.log("DB ERROR:", err);
-                return res.json({ success: false });
-            }
+    // GET ALL USERS (avoid SQL mismatch issues)
+    db.query("SELECT * FROM users", (err, results) => {
 
-            console.log("RESULT:", result);
-
-            if (result.length > 0) {
-                req.session.user = username;
-                req.session.role = result[0].role;
-
-                return res.json({ success: true });
-            } else {
-                return res.json({ success: false });
-            }
+        if (err) {
+            console.log("❌ DB ERROR:", err);
+            return res.json({ success: false });
         }
-    );
+
+        console.log("📦 USERS IN DB:", results);
+
+        const user = results.find(u =>
+            u.username.trim() === username &&
+            u.password.trim() === encrypted
+        );
+
+        if (user) {
+            console.log("✅ LOGIN SUCCESS");
+
+            req.session.user = username;
+            req.session.role = user.role;
+
+            return res.json({ success: true });
+        } else {
+            console.log("❌ LOGIN FAILED");
+            return res.json({ success: false });
+        }
+    });
 });
 
 // SIGNUP
 app.post('/signup', (req, res) => {
     let { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.json({ success: false });
+    }
 
     username = username.trim();
     password = password.trim();
@@ -100,7 +110,12 @@ app.post('/signup', (req, res) => {
         "INSERT INTO users (username, password) VALUES (?, ?)",
         [username, encrypted],
         (err) => {
-            if (err) return res.json({ success: false });
+            if (err) {
+                console.log("❌ SIGNUP ERROR:", err);
+                return res.json({ success: false });
+            }
+
+            console.log("✅ USER CREATED");
             res.json({ success: true });
         }
     );
@@ -131,6 +146,6 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// START
+// START SERVER
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("🚀 Running on port " + PORT));
