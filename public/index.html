@@ -47,10 +47,8 @@ button {
 
 <script>
 async function login() {
-    const username = document.getElementById("username").value.trim();
-    const password = document.getElementById("password").value.trim();
-
-    console.log("Sending:", username, password);
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
 
     const res = await fetch('/login', {
         method: 'POST',
@@ -59,29 +57,27 @@ async function login() {
     });
 
     const data = await res.json();
-    console.log("Response:", data);
 
     if (data.success) {
         alert("Login success!");
-        window.location = "verify.html";
     } else {
         alert("Invalid login");
     }
 }
 
 async function signup() {
-    const username = document.getElementById("username").value.trim();
-    const password = document.getElementById("password").value.trim();
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
 
     const res = await fetch('/signup', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
     });
 
     const data = await res.json();
 
-    if(data.success){
+    if (data.success) {
         alert("Account created!");
     } else {
         alert("Signup failed");
