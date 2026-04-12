@@ -8,7 +8,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// SESSION
+// SESSION (works on Render)
 app.use(session({
     secret: 'secret123',
     resave: false,
@@ -19,7 +19,7 @@ app.use(session({
     }
 }));
 
-// DATABASE CONNECTION
+// ✅ DATABASE (IMPORTANT: uses Render env vars)
 const db = mysql.createConnection({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -32,11 +32,11 @@ db.connect(err => {
     if (err) {
         console.log("❌ DB ERROR:", err);
     } else {
-        console.log("✅ Connected to Railway DB");
+        console.log("✅ Connected to DB");
     }
 });
 
-// CAESAR CIPHER
+// 🔐 CAESAR
 function caesarEncrypt(text, shift = 3) {
     return text.split('').map(c => {
         if (/[a-z]/i.test(c)) {
@@ -47,11 +47,9 @@ function caesarEncrypt(text, shift = 3) {
     }).join('');
 }
 
-// 🔥 LOGIN (FINAL WORKING)
+// 🔥 LOGIN (simple + reliable)
 app.post('/login', (req, res) => {
     let { username, password } = req.body;
-
-    console.log("📥 RAW INPUT:", req.body);
 
     if (!username || !password) {
         return res.json({ success: false });
@@ -62,17 +60,14 @@ app.post('/login', (req, res) => {
 
     const encrypted = caesarEncrypt(password, 3);
 
-    console.log("🔐 CHECKING:", username, encrypted);
-
-    // GET ALL USERS (avoid SQL mismatch issues)
     db.query("SELECT * FROM users", (err, results) => {
-
         if (err) {
-            console.log("❌ DB ERROR:", err);
+            console.log("❌ LOGIN DB ERROR:", err);
             return res.json({ success: false });
         }
 
-        console.log("📦 USERS IN DB:", results);
+        console.log("📦 USERS:", results);
+        console.log("🔍 CHECK:", username, encrypted);
 
         const user = results.find(u =>
             u.username.trim() === username &&
@@ -82,7 +77,7 @@ app.post('/login', (req, res) => {
         if (user) {
             console.log("✅ LOGIN SUCCESS");
 
-            req.session.user = username;
+            req.session.user = user.username;
             req.session.role = user.role;
 
             return res.json({ success: true });
@@ -107,7 +102,7 @@ app.post('/signup', (req, res) => {
     const encrypted = caesarEncrypt(password, 3);
 
     db.query(
-        "INSERT INTO users (username, password) VALUES (?, ?)",
+        "INSERT INTO users (username, password, role) VALUES (?, ?, 'user')",
         [username, encrypted],
         (err) => {
             if (err) {
@@ -119,6 +114,18 @@ app.post('/signup', (req, res) => {
             res.json({ success: true });
         }
     );
+});
+
+// ✅ TEST DB ROUTE (VERY IMPORTANT)
+app.get('/test-db', (req, res) => {
+    db.query("SELECT * FROM users", (err, results) => {
+        if (err) {
+            console.log("❌ TEST DB ERROR:", err);
+            return res.json({ error: err });
+        }
+        console.log("📦 TEST DB RESULT:", results);
+        res.json(results);
+    });
 });
 
 // SESSION CHECK
@@ -146,6 +153,6 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// START SERVER
+// START
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("🚀 Running on port " + PORT));
