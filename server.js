@@ -5,13 +5,17 @@ const path = require('path');
 
 const app = express();
 
-// middleware
-app.use(bodyParser.json());
+// =======================
+// MIDDLEWARE
+// =======================
+app.use(bodyParser.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 10000;
 
-// ✅ DATABASE CONNECTION (FROM DATABASE_URL)
+// =======================
+// DATABASE CONNECTION
+// =======================
 const url = new URL(process.env.DATABASE_URL);
 
 const db = mysql.createConnection({
@@ -22,53 +26,45 @@ const db = mysql.createConnection({
     port: url.port
 });
 
-// connect
 db.connect(err => {
-    if (err) {
-        console.log("❌ DB ERROR:", err);
-    } else {
-        console.log("✅ Connected to DB");
-    }
+    if (err) console.log("❌ DB ERROR:", err);
+    else console.log("✅ Connected to DB");
 });
 
-// ✅ ROOT PAGE
+// =======================
+// ROOT
+// =======================
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ✅ TEST DB
-app.get('/test-db', (req, res) => {
-    db.query("SELECT * FROM users", (err, results) => {
-        if (err) {
-            console.log("❌ TEST ERROR:", err);
-            return res.json({ error: err });
-        }
-        res.json(results);
-    });
-});
-
-// ✅ SIGNUP (WITH ERROR LOGGING)
+// =======================
+// SIGNUP
+// =======================
 app.post('/signup', (req, res) => {
-    const { username, password } = req.body;
+    const { username, password, face, fingerprint } = req.body;
 
-    console.log("SIGNUP:", username, password);
+    if (!username || !password || !face || !fingerprint) {
+        return res.json({ success: false, error: "Missing data" });
+    }
 
     db.query(
-        "INSERT INTO users (username, password) VALUES (?, ?)",
-        [username, password],
+        "INSERT INTO users (username, password, face_data, fingerprint_data) VALUES (?, ?, ?, ?)",
+        [username, password, JSON.stringify(face), fingerprint],
         (err) => {
             if (err) {
-                console.log("❌ SIGNUP ERROR:", err);
-                return res.json({ success: false, error: err.message });
+                console.log(err);
+                return res.json({ success: false });
             }
 
-            console.log("✅ USER CREATED");
             res.json({ success: true });
         }
     );
 });
 
-// ✅ LOGIN
+// =======================
+// LOGIN (CHECK USER)
+// =======================
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
 
@@ -76,12 +72,34 @@ app.post('/login', (req, res) => {
         "SELECT * FROM users WHERE username=? AND password=?",
         [username, password],
         (err, results) => {
-            if (err) {
-                console.log("❌ LOGIN ERROR:", err);
+            if (err || results.length === 0) {
+                return res.json({ exists: false });
+            }
+
+            res.json({ exists: true });
+        }
+    );
+});
+
+// =======================
+// FACE CHECK
+// =======================
+app.post('/login-face', (req, res) => {
+    const { username, face } = req.body;
+
+    db.query(
+        "SELECT face_data FROM users WHERE username=?",
+        [username],
+        (err, results) => {
+            if (err || results.length === 0) {
                 return res.json({ success: false });
             }
 
-            if (results.length > 0) {
+            const storedFace = JSON.parse(results[0].face_data);
+
+            const distance = faceDistance(face, storedFace);
+
+            if (distance < 0.5) {
                 res.json({ success: true });
             } else {
                 res.json({ success: false });
@@ -90,6 +108,43 @@ app.post('/login', (req, res) => {
     );
 });
 
+// =======================
+// FINGERPRINT CHECK
+// =======================
+app.post('/login-fingerprint', (req, res) => {
+    const { username, fingerprint } = req.body;
+
+    db.query(
+        "SELECT fingerprint_data FROM users WHERE username=?",
+        [username],
+        (err, results) => {
+            if (err || results.length === 0) {
+                return res.json({ success: false });
+            }
+
+            if (results[0].fingerprint_data === fingerprint) {
+                res.json({ success: true });
+            } else {
+                res.json({ success: false });
+            }
+        }
+    );
+});
+
+// =======================
+// FACE DISTANCE FUNCTION
+// =======================
+function faceDistance(face1, face2) {
+    let sum = 0;
+
+    for (let i = 0; i < face1.length; i++) {
+        sum += Math.pow(face1[i] - face2[i], 2);
+    }
+
+    return Math.sqrt(sum);
+}
+
+// =======================
 app.listen(PORT, () => {
     console.log("🚀 Running on port " + PORT);
 });
