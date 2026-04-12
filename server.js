@@ -8,31 +8,35 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// SESSION
+// 🔐 SESSION (fix for Render)
 app.use(session({
     secret: 'secret123',
     resave: false,
-    saveUninitialized: true
+    saveUninitialized: false,
+    cookie: {
+        secure: false, // keep false for now
+        sameSite: 'lax'
+    }
 }));
 
-// DATABASE (RAILWAY READY)
+// 🗄️ DATABASE
 const db = mysql.createConnection({
-    host: process.env.DB_HOST || process.env.MYSQLHOST,
-    user: process.env.DB_USER || process.env.MYSQLUSER,
-    password: process.env.DB_PASS || process.env.MYSQLPASSWORD,
-    database: process.env.DB_NAME || process.env.MYSQLDATABASE,
-    port: process.env.MYSQLPORT || 3306
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.DB_NAME,
+    port: process.env.MYSQLPORT
 });
 
 db.connect(err => {
     if (err) {
-        console.log("❌ DB Error:", err);
+        console.log("❌ DB ERROR:", err);
     } else {
         console.log("✅ Connected to Railway DB");
     }
 });
 
-// CAESAR
+// 🔐 CAESAR
 function caesarEncrypt(text, shift = 3) {
     return text.split('').map(c => {
         if (/[a-z]/i.test(c)) {
@@ -43,31 +47,38 @@ function caesarEncrypt(text, shift = 3) {
     }).join('');
 }
 
-// LOGIN
+// 🔥 LOGIN (FIXED)
 app.post('/login', (req, res) => {
-    const { username, password } = req.body;
+    let { username, password } = req.body;
 
-    console.log("INPUT:", username, password);
+    console.log("INPUT RAW:", req.body);
+
+    if (!username || !password) {
+        return res.json({ success: false });
+    }
+
+    username = username.trim();
+    password = password.trim();
 
     const encrypted = caesarEncrypt(password, 3);
 
-    console.log("ENCRYPTED:", encrypted);
+    console.log("CHECK:", username, encrypted);
 
     db.query(
         "SELECT * FROM users WHERE username=? AND password=?",
         [username, encrypted],
         (err, result) => {
-
             if (err) {
                 console.log("DB ERROR:", err);
                 return res.json({ success: false });
             }
 
-            console.log("DB RESULT:", result);
+            console.log("RESULT:", result);
 
             if (result.length > 0) {
                 req.session.user = username;
                 req.session.role = result[0].role;
+
                 return res.json({ success: true });
             } else {
                 return res.json({ success: false });
@@ -78,7 +89,11 @@ app.post('/login', (req, res) => {
 
 // SIGNUP
 app.post('/signup', (req, res) => {
-    const { username, password } = req.body;
+    let { username, password } = req.body;
+
+    username = username.trim();
+    password = password.trim();
+
     const encrypted = caesarEncrypt(password, 3);
 
     db.query(
@@ -102,17 +117,6 @@ app.get('/session', (req, res) => {
     } else {
         res.json({ loggedIn: false });
     }
-});
-
-// ADMIN USERS
-app.get('/users', (req, res) => {
-    if (req.session.role !== 'admin') {
-        return res.status(403).json([]);
-    }
-
-    db.query("SELECT username, password FROM users", (err, result) => {
-        res.json(result);
-    });
 });
 
 // LOGOUT

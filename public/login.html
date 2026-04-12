@@ -1,37 +1,132 @@
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
+<!DOCTYPE html>
+<html>
+<head>
+<title>Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    console.log("👉 RECEIVED:", req.body);
+<style>
+body {
+    font-family: Arial;
+    background: linear-gradient(135deg,#4facfe,#00f2fe);
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+.box {
+    background:white;
+    padding:30px;
+    border-radius:10px;
+    width:300px;
+    text-align:center;
+    box-shadow:0 5px 15px rgba(0,0,0,0.2);
+}
+input {
+    width:90%;
+    padding:10px;
+    margin:10px;
+}
+button {
+    width:95%;
+    padding:10px;
+    margin-top:10px;
+    border:none;
+    background:#4facfe;
+    color:white;
+    border-radius:5px;
+    cursor:pointer;
+}
+button:hover {
+    background:#007bff;
+}
+</style>
+</head>
+
+<body>
+
+<div class="box">
+<h2>Login / Sign Up</h2>
+
+<input id="username" placeholder="Username">
+<input id="password" type="password" placeholder="Password">
+
+<button onclick="login()">Login</button>
+<button onclick="signup()">Sign Up</button>
+</div>
+
+<script>
+
+// 🔐 LOGIN FUNCTION
+async function login() {
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value.trim();
+
+    console.log("📤 Sending:", username, password);
 
     if (!username || !password) {
-        console.log("❌ Missing data");
-        return res.json({ success: false });
+        alert("Please fill all fields");
+        return;
     }
 
-    const encrypted = caesarEncrypt(password, 3);
+    try {
+        const res = await fetch('/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, password })
+        });
 
-    console.log("👉 ENCRYPTED:", encrypted);
+        const data = await res.json();
 
-    db.query(
-        "SELECT * FROM users WHERE username=? AND password=?",
-        [username, encrypted],
-        (err, result) => {
+        console.log("📥 Response:", data);
 
-            if (err) {
-                console.log("❌ DB ERROR:", err);
-                return res.json({ success: false });
-            }
-
-            console.log("👉 DB RESULT:", result);
-
-            if (result.length > 0) {
-                console.log("✅ LOGIN SUCCESS");
-                req.session.user = username;
-                return res.json({ success: true });
-            } else {
-                console.log("❌ LOGIN FAILED");
-                return res.json({ success: false });
-            }
+        if (data.success) {
+            alert("✅ Login success!");
+            window.location = "verify.html";
+        } else {
+            alert("❌ Invalid login");
         }
-    );
-});
+
+    } catch (err) {
+        console.error("❌ Error:", err);
+        alert("Server error");
+    }
+}
+
+
+// 🆕 SIGNUP FUNCTION
+async function signup() {
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value.trim();
+
+    if (!username || !password) {
+        alert("Fill all fields");
+        return;
+    }
+
+    try {
+        const res = await fetch('/signup', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await res.json();
+
+        if(data.success){
+            alert("✅ Account created! You can now login.");
+        } else {
+            alert("❌ Signup failed (maybe username exists)");
+        }
+
+    } catch (err) {
+        console.error(err);
+        alert("Server error");
+    }
+}
+
+</script>
+
+</body>
+</html>
