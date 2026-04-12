@@ -46,18 +46,31 @@ function caesarEncrypt(text, shift = 3) {
 // LOGIN
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
+
+    console.log("INPUT:", username, password);
+
     const encrypted = caesarEncrypt(password, 3);
+
+    console.log("ENCRYPTED:", encrypted);
 
     db.query(
         "SELECT * FROM users WHERE username=? AND password=?",
         [username, encrypted],
         (err, result) => {
-            if (result && result.length > 0) {
+
+            if (err) {
+                console.log("DB ERROR:", err);
+                return res.json({ success: false });
+            }
+
+            console.log("DB RESULT:", result);
+
+            if (result.length > 0) {
                 req.session.user = username;
                 req.session.role = result[0].role;
-                res.json({ success: true, role: result[0].role });
+                return res.json({ success: true });
             } else {
-                res.json({ success: false });
+                return res.json({ success: false });
             }
         }
     );
