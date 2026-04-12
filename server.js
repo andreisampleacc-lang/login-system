@@ -1,7 +1,6 @@
 const express = require('express');
 const mysql = require('mysql2');
 const bodyParser = require('body-parser');
-const path = require('path');
 
 const app = express();
 app.use(bodyParser.json());
@@ -9,22 +8,31 @@ app.use(express.static('public'));
 
 const PORT = process.env.PORT || 10000;
 
-// ✅ USE DATABASE_URL (THIS IS THE FIX)
-const db = mysql.createConnection(process.env.DATABASE_URL);
+// ✅ PARSE DATABASE_URL CORRECTLY
+const url = new URL(process.env.DATABASE_URL);
 
+const db = mysql.createConnection({
+    host: url.hostname,
+    user: url.username,
+    password: url.password,
+    database: url.pathname.replace('/', ''),
+    port: url.port
+});
+
+// CONNECT
 db.connect(err => {
     if (err) {
-        console.log("❌ DB connection failed:", err);
+        console.log("❌ DB ERROR:", err);
     } else {
-        console.log("✅ Connected to Railway MySQL");
+        console.log("✅ Connected to Railway DB");
     }
 });
 
-// TEST ROUTE
+// TEST
 app.get('/test-db', (req, res) => {
-    db.query("SELECT * FROM users", (err, results) => {
+    db.query("SELECT 1", (err, result) => {
         if (err) return res.json({ error: err });
-        res.json(results);
+        res.json({ success: true });
     });
 });
 
@@ -36,7 +44,10 @@ app.post('/signup', (req, res) => {
         "INSERT INTO users (username, password) VALUES (?, ?)",
         [username, password],
         (err) => {
-            if (err) return res.json({ success: false });
+            if (err) {
+                console.log(err);
+                return res.json({ success: false });
+            }
             res.json({ success: true });
         }
     );
@@ -50,7 +61,10 @@ app.post('/login', (req, res) => {
         "SELECT * FROM users WHERE username=? AND password=?",
         [username, password],
         (err, results) => {
-            if (err) return res.json({ success: false });
+            if (err) {
+                console.log(err);
+                return res.json({ success: false });
+            }
 
             if (results.length > 0) {
                 res.json({ success: true });
