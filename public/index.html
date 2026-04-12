@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Login</title>
+<title>Secure Login</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -20,15 +20,14 @@ body {
     width:300px;
     text-align:center;
 }
-input {
+input, button {
     width:90%;
     padding:10px;
     margin:10px;
 }
-button {
-    width:95%;
-    padding:10px;
-    margin-top:10px;
+video {
+    width:100%;
+    border-radius:10px;
 }
 </style>
 </head>
@@ -36,51 +35,110 @@ button {
 <body>
 
 <div class="box">
-<h2>Login / Sign Up</h2>
+<h2>Secure Login</h2>
 
 <input id="username" placeholder="Username">
 <input id="password" type="password" placeholder="Password">
 
-<button onclick="login()">Login</button>
 <button onclick="signup()">Sign Up</button>
+<button onclick="login()">Login</button>
+
+<br><br>
+
+<video id="camera" autoplay></video>
+<button onclick="startCamera()">Start Face Scan</button>
+
 </div>
 
 <script>
-async function login() {
+// =======================
+// CAMERA (FACE SCAN)
+// =======================
+async function startCamera(){
+    const video = document.getElementById("camera");
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+}
+
+// =======================
+// SIGNUP FLOW
+// =======================
+async function signup(){
     const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
 
-    const res = await fetch('/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+    // STEP 1: Fingerprint (WebAuthn)
+    try {
+        await navigator.credentials.create({
+            publicKey: {
+                challenge: new Uint8Array(32),
+                rp: { name: "LoginSystem" },
+                user: {
+                    id: new Uint8Array(16),
+                    name: username,
+                    displayName: username
+                },
+                pubKeyCredParams: [{ type: "public-key", alg: -7 }]
+            }
+        });
+
+        alert("Fingerprint registered!");
+    } catch(e){
+        alert("Fingerprint failed");
+        return;
+    }
+
+    // STEP 2: Send to server
+    const res = await fetch('/signup', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ username, password })
     });
 
     const data = await res.json();
 
-    if (data.success) {
-        alert("Login success!");
+    if(data.success){
+        alert("Signup complete with biometrics!");
     } else {
-        alert("Invalid login");
+        alert("Signup failed: " + data.error);
     }
 }
 
-async function signup() {
+// =======================
+// LOGIN FLOW
+// =======================
+async function login(){
     const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
 
-    const res = await fetch('/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+    // STEP 1: Fingerprint verify
+    try {
+        await navigator.credentials.get({
+            publicKey: {
+                challenge: new Uint8Array(32),
+                allowCredentials: []
+            }
+        });
+
+        alert("Fingerprint verified!");
+    } catch(e){
+        alert("Fingerprint failed");
+        return;
+    }
+
+    // STEP 2: normal login
+    const res = await fetch('/login', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ username, password })
     });
 
     const data = await res.json();
 
-    if (data.success) {
-        alert("Account created!");
+    if(data.success){
+        alert("Login success!");
     } else {
-        alert("Signup failed");
+        alert("Invalid login");
     }
 }
 </script>
