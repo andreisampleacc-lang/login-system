@@ -1,95 +1,37 @@
-<!DOCTYPE html>
-<html>
-<head>
-<title>Login</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+app.post('/login', (req, res) => {
+    const { username, password } = req.body;
 
-<style>
-body {
-    font-family: Arial;
-    background: linear-gradient(135deg,#4facfe,#00f2fe);
-    height:100vh;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-}
-.box {
-    background:white;
-    padding:30px;
-    border-radius:10px;
-    width:300px;
-    text-align:center;
-}
-input {
-    width:90%;
-    padding:10px;
-    margin:10px;
-}
-button {
-    width:95%;
-    padding:10px;
-    margin-top:10px;
-}
-</style>
-</head>
+    console.log("👉 RECEIVED:", req.body);
 
-<body>
+    if (!username || !password) {
+        console.log("❌ Missing data");
+        return res.json({ success: false });
+    }
 
-<div class="box">
-<h2>Login / Sign Up</h2>
+    const encrypted = caesarEncrypt(password, 3);
 
-<input id="username" placeholder="Username">
-<input id="password" type="password" placeholder="Password">
+    console.log("👉 ENCRYPTED:", encrypted);
 
-<button onclick="login()">Login</button>
-<button onclick="signup()">Sign Up</button>
-</div>
+    db.query(
+        "SELECT * FROM users WHERE username=? AND password=?",
+        [username, encrypted],
+        (err, result) => {
 
-<script>
-async function login() {
-    const res = await fetch('/login', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-            username: username.value,
-            password: password.value
-        })
-    });
+            if (err) {
+                console.log("❌ DB ERROR:", err);
+                return res.json({ success: false });
+            }
 
-    const data = await res.json();
+            console.log("👉 DB RESULT:", result);
 
-    if(data.success){
-        localStorage.setItem("user", username.value);
-
-        if(data.role === "admin"){
-            window.location="admin.html";
-        } else {
-            window.location="verify.html";
+            if (result.length > 0) {
+                console.log("✅ LOGIN SUCCESS");
+                req.session.user = username;
+                return res.json({ success: true });
+            } else {
+                console.log("❌ LOGIN FAILED");
+                return res.json({ success: false });
+            }
         }
-    } else {
-        alert("Invalid login");
-    }
-}
-
-async function signup() {
-    const res = await fetch('/signup', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-            username: username.value,
-            password: password.value
-        })
-    });
-
-    const data = await res.json();
-
-    if(data.success){
-        alert("Account created!");
-    } else {
-        alert("Signup failed");
-    }
-}
-</script>
-
-</body>
-</html>
+    );
+});
