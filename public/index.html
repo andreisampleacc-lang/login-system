@@ -1,15 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Biometric Login</title>
+<title>Login</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<script defer src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
-
 <style>
 body {
     font-family: Arial;
-    background: linear-gradient(135deg,#4facfe,#00f2fe);
+    background:#4facfe;
     display:flex;
     justify-content:center;
     align-items:center;
@@ -19,22 +16,13 @@ body {
     background:white;
     padding:20px;
     border-radius:10px;
+    width:250px;
     text-align:center;
-    width:280px;
 }
 input,button {
     margin:5px;
     padding:10px;
     width:90%;
-}
-video {
-    width:100%;
-    margin-top:10px;
-}
-#status {
-    margin-top:10px;
-    font-size:14px;
-    color:#333;
 }
 </style>
 </head>
@@ -42,271 +30,35 @@ video {
 <body>
 
 <div class="box">
-
 <input id="username" placeholder="Username">
 <input id="password" type="password" placeholder="Password">
 
 <button onclick="login()">Log In</button>
-<button onclick="startSignup()">Sign Up</button>
-
-<br><br>
-
-<button id="scanFaceBtn" onclick="scanFace()" style="display:none;">
-Scan Face
-</button>
-
-<video id="video" autoplay muted></video>
-
-<div id="status"></div>
-
+<button onclick="signup()">Sign Up</button>
 </div>
 
 <script>
 
-let savedFace = null;
-let mode = "";
+function login(){
+    const u = document.getElementById("username").value;
+    const p = document.getElementById("password").value;
 
-// =======================
-// STATUS
-// =======================
-function setStatus(text){
-    document.getElementById("status").innerText = text;
+    localStorage.setItem("username", u);
+    localStorage.setItem("password", p);
+    localStorage.setItem("mode", "login");
+
+    window.location = "face.html";
 }
 
-// =======================
-// LOAD MODELS
-// =======================
-async function loadModels(){
-    setStatus("Loading face system...");
-    await faceapi.nets.tinyFaceDetector.loadFromUri('/models/tiny_face_detector');
-    await faceapi.nets.faceLandmark68Net.loadFromUri('/models/face_landmark_68');
-    await faceapi.nets.faceRecognitionNet.loadFromUri('/models/face_recognition');
-    setStatus("✅ System ready");
-}
-loadModels();
+function signup(){
+    const u = document.getElementById("username").value;
+    const p = document.getElementById("password").value;
 
-// =======================
-// CAMERA
-// =======================
-async function startCamera(){
-    const video = document.getElementById("video");
-    const stream = await navigator.mediaDevices.getUserMedia({ video:true });
-    video.srcObject = stream;
-}
+    localStorage.setItem("username", u);
+    localStorage.setItem("password", p);
+    localStorage.setItem("mode", "signup");
 
-// =======================
-// FINGERPRINT (HYBRID)
-// =======================
-async function scanFingerprint(){
-
-    setStatus("🔐 Scanning fingerprint...");
-
-    try {
-        const res = await fetch('http://localhost:5000/scan-fingerprint');
-        const data = await res.json();
-
-        if(data.success){
-            setStatus("🖥️ Fingerprint captured");
-            return data.template;
-        }
-    } catch(e){}
-
-    try {
-        await navigator.credentials.get({
-            publicKey: {
-                challenge: new Uint8Array(32),
-                userVerification: "required"
-            }
-        });
-
-        setStatus("📱 Phone biometric verified");
-        return "phone_verified";
-
-    } catch(err){
-        setStatus("❌ Fingerprint failed");
-        return null;
-    }
-}
-
-// =======================
-// SIGNUP START
-// =======================
-function startSignup(){
-    mode = "signup";
-    document.getElementById("scanFaceBtn").style.display = "block";
-    setStatus("👉 Click Scan Face");
-}
-
-// =======================
-// LOGIN
-// =======================
-async function login(){
-
-    setStatus("Checking account...");
-
-    const res = await fetch('/login',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-            username:getUser(),
-            password:getPass()
-        })
-    });
-
-    const data = await res.json();
-
-    if(!data.exists){
-        setStatus("❌ No account found");
-        return;
-    }
-
-    mode = "login";
-    document.getElementById("scanFaceBtn").style.display = "block";
-    setStatus("👉 Scan your face");
-}
-
-// =======================
-// FACE SCAN
-// =======================
-async function scanFace(){
-
-    await startCamera();
-
-    setStatus("📸 Scanning face...");
-
-    const video = document.getElementById("video");
-
-    const detection = await faceapi
-        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-
-    if(!detection){
-        setStatus("❌ No face detected");
-        return;
-    }
-
-    savedFace = Array.from(detection.descriptor);
-
-    setStatus("✅ Face captured");
-
-    if(mode === "signup"){
-        signupProcess();
-    } else {
-        verifyFaceLogin();
-    }
-}
-
-// =======================
-// SIGNUP
-// =======================
-async function signupProcess(){
-
-    const fingerprint = await scanFingerprint();
-    if(!fingerprint) return;
-
-    setStatus("Saving account...");
-
-    const res = await fetch('/signup',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-            username:getUser(),
-            password:getPass(),
-            face:savedFace,
-            fingerprint
-        })
-    });
-
-    const data = await res.json();
-
-    if(data.success){
-        setStatus("🎉 Signup complete!");
-    } else {
-        setStatus("❌ Signup failed");
-    }
-}
-
-// =======================
-// FACE CHECK
-// =======================
-async function verifyFaceLogin(){
-
-    setStatus("Checking face...");
-
-    const res = await fetch('/login-face',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-            username:getUser(),
-            face:savedFace
-        })
-    });
-
-    const data = await res.json();
-
-    if(!data.success){
-        setStatus("❌ Face not matched");
-        return;
-    }
-
-    setStatus("✅ Face matched");
-
-    verifyFingerprintLogin();
-}
-
-// =======================
-// FINAL LOGIN SUCCESS SCREEN
-// =======================
-async function verifyFingerprintLogin(){
-
-    const fingerprint = await scanFingerprint();
-    if(!fingerprint) return;
-
-    const res = await fetch('/login-fingerprint',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-            username:getUser(),
-            fingerprint
-        })
-    });
-
-    const data = await res.json();
-
-    if(data.success){
-
-        // 🔥 FULL SCREEN SUCCESS
-        document.body.innerHTML = `
-        <div style="
-            display:flex;
-            justify-content:center;
-            align-items:center;
-            height:100vh;
-            background:#00c853;
-            color:white;
-            font-size:30px;
-            font-family:Arial;
-            text-align:center;
-        ">
-            LOGIN SUCCESSFUL ✅
-        </div>
-        `;
-
-    } else {
-        setStatus("❌ Fingerprint mismatch");
-    }
-}
-
-// =======================
-// HELPERS
-// =======================
-function getUser(){
-    return document.getElementById("username").value;
-}
-
-function getPass(){
-    return document.getElementById("password").value;
+    window.location = "face.html";
 }
 
 </script>

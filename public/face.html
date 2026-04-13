@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Face Scan</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script defer src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+<style>
+body {
+    font-family: Arial;
+    text-align:center;
+    background:#111;
+    color:white;
+}
+
+video {
+    width:90%;
+    margin-top:20px;
+    border-radius:10px;
+}
+
+#status {
+    margin-top:10px;
+    font-size:16px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Face Scan</h2>
+<p id="status">Loading...</p>
+
+<video id="video" autoplay muted playsinline></video>
+
+<script>
+
+let savedFace = null;
+
+// =======================
+// LOAD MODELS (FIXED)
+// =======================
+async function load(){
+
+    const status = document.getElementById("status");
+    status.innerText = "Loading AI models...";
+
+    try {
+
+        await faceapi.nets.tinyFaceDetector.loadFromUri('/models/tiny_face_detector');
+        await faceapi.nets.faceLandmark68Net.loadFromUri('/models/face_landmark_68');
+        await faceapi.nets.faceRecognitionNet.loadFromUri('/models/face_recognition');
+
+        status.innerText = "✅ Models loaded";
+
+        setTimeout(startCamera, 1000);
+
+    } catch (err){
+        status.innerText = "❌ Model load failed";
+        console.log(err);
+    }
+}
+
+// =======================
+// CAMERA
+// =======================
+async function startCamera(){
+
+    const video = document.getElementById("video");
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user" }
+        });
+
+        video.srcObject = stream;
+
+        scanLoop(video, stream);
+
+    } catch (err){
+        document.getElementById("status").innerText = "❌ Camera error";
+        console.log(err);
+    }
+}
+
+// =======================
+// FACE DETECTION LOOP (FIXED)
+// =======================
+async function scanLoop(video, stream){
+
+    const status = document.getElementById("status");
+
+    const interval = setInterval(async () => {
+
+        try {
+
+            const detection = await faceapi
+                .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+                .withFaceLandmarks()
+                .withFaceDescriptor();
+
+            if(detection){
+
+                status.innerText = "✅ FACE DETECTED";
+
+                clearInterval(interval);
+                stream.getTracks().forEach(t => t.stop());
+
+                savedFace = Array.from(detection.descriptor);
+
+                setTimeout(() => {
+                    proceed(savedFace);
+                }, 1000);
+
+            } else {
+                status.innerText = "👀 Looking for face...";
+            }
+
+        } catch (err){
+            status.innerText = "⚠️ Detection error";
+            console.log(err);
+        }
+
+    }, 200);
+}
+
+// =======================
+// NEXT STEP (LOGIN / SIGNUP)
+// =======================
+async function proceed(face){
+
+    const username = localStorage.getItem("username");
+    const password = localStorage.getItem("password");
+    const mode = localStorage.getItem("mode");
+
+    const fingerprint = await scanFingerprint();
+    if(!fingerprint) return;
+
+    if(mode === "signup"){
+
+        const res = await fetch('/signup',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+                username,
+                password,
+                face,
+                fingerprint
+            })
+        });
+
+        const data = await res.json();
+
+        if(data.success){
+            showSuccess("SIGNUP SUCCESSFUL");
+        } else {
+            alert("Signup failed");
+        }
+
+    } else {
+
+        // LOGIN FLOW
+        const res1 = await fetch('/login',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ username, password })
+        });
+
+        const data1 = await res1.json();
+
+        if(!data1.exists){
+            alert("No account found");
+            return;
+        }
+
+        const res2 = await fetch('/login-face',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ username, face })
+        });
+
+        const data2 = await res2.json();
+
+        if(!data2.success){
+            alert("Face not matched");
+            return;
+        }
+
+        const res3 = await fetch('/login-fingerprint',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ username, fingerprint })
+        });
+
+        const data3 = await res3.json();
+
+        if(data3.success){
+            showSuccess("LOGIN SUCCESSFUL");
+        } else {
+            alert("Fingerprint failed");
+        }
+    }
+}
+
+// =======================
+// PHONE FINGERPRINT
+// =======================
+async function scanFingerprint(){
+
+    try {
+        await navigator.credentials.get({
+            publicKey: {
+                challenge: new Uint8Array(32),
+                userVerification: "required"
+            }
+        });
+
+        return "phone_verified";
+
+    } catch(e){
+        alert("Fingerprint failed");
+        return null;
+    }
+}
+
+// =======================
+// SUCCESS SCREEN
+// =======================
+function showSuccess(text){
+    document.body.innerHTML = `
+    <div style="
+        display:flex;
+        justify-content:center;
+        align-items:center;
+        height:100vh;
+        background:#00c853;
+        color:white;
+        font-size:28px;
+    ">
+        ${text} ✅
+    </div>`;
+}
+
+// START
+load();
+
+</script>
+
+</body>
+</html>
