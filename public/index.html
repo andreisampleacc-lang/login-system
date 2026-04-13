@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Login</title>
+<title>Biometric Login</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <script defer src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -31,6 +31,11 @@ video {
     width:100%;
     margin-top:10px;
 }
+#status {
+    margin-top:10px;
+    font-size:14px;
+    color:#333;
+}
 </style>
 </head>
 
@@ -52,63 +57,112 @@ Scan Face
 
 <video id="video" autoplay muted></video>
 
+<div id="status"></div>
+
 </div>
 
 <script>
 
 let savedFace = null;
-let savedFingerprint = null;
-let mode = ""; // login or signup
+let mode = "";
 
+// =======================
+// STATUS
+// =======================
+function setStatus(text){
+    document.getElementById("status").innerText = text;
+}
+
+// =======================
 // LOAD MODELS
+// =======================
 async function loadModels(){
+    setStatus("Loading face system...");
     await faceapi.nets.tinyFaceDetector.loadFromUri('/models/tiny_face_detector');
     await faceapi.nets.faceLandmark68Net.loadFromUri('/models/face_landmark_68');
     await faceapi.nets.faceRecognitionNet.loadFromUri('/models/face_recognition');
+    setStatus("✅ System ready");
 }
 loadModels();
 
+// =======================
 // CAMERA
+// =======================
 async function startCamera(){
     const video = document.getElementById("video");
-    const stream = await navigator.mediaDevices.getUserMedia({
-        video:true
-    });
+    const stream = await navigator.mediaDevices.getUserMedia({ video:true });
     video.srcObject = stream;
 }
 
 // =======================
-// SIGN UP START
+// FINGERPRINT (HYBRID)
+// =======================
+async function scanFingerprint(){
+
+    setStatus("🔐 Scanning fingerprint...");
+
+    try {
+        const res = await fetch('http://localhost:5000/scan-fingerprint');
+        const data = await res.json();
+
+        if(data.success){
+            setStatus("🖥️ Fingerprint captured");
+            return data.template;
+        }
+    } catch(e){}
+
+    try {
+        await navigator.credentials.get({
+            publicKey: {
+                challenge: new Uint8Array(32),
+                userVerification: "required"
+            }
+        });
+
+        setStatus("📱 Phone biometric verified");
+        return "phone_verified";
+
+    } catch(err){
+        setStatus("❌ Fingerprint failed");
+        return null;
+    }
+}
+
+// =======================
+// SIGNUP START
 // =======================
 function startSignup(){
     mode = "signup";
     document.getElementById("scanFaceBtn").style.display = "block";
-    alert("Click Scan Face to start");
+    setStatus("👉 Click Scan Face");
 }
 
 // =======================
-// LOGIN START
+// LOGIN
 // =======================
 async function login(){
-    const username = usernameInput();
-    const password = passwordInput();
+
+    setStatus("Checking account...");
 
     const res = await fetch('/login',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({
+            username:getUser(),
+            password:getPass()
+        })
     });
 
     const data = await res.json();
 
     if(!data.exists){
-        alert("❌ No account found");
+        setStatus("❌ No account found");
         return;
     }
 
     mode = "login";
     document.getElementById("scanFaceBtn").style.display = "block";
-    alert("Scan your face");
+    setStatus("👉 Scan your face");
 }
 
 // =======================
@@ -118,7 +172,7 @@ async function scanFace(){
 
     await startCamera();
 
-    alert("📸 Scanning face...");
+    setStatus("📸 Scanning face...");
 
     const video = document.getElementById("video");
 
@@ -128,36 +182,38 @@ async function scanFace(){
         .withFaceDescriptor();
 
     if(!detection){
-        alert("❌ No face detected");
+        setStatus("❌ No face detected");
         return;
     }
 
     savedFace = Array.from(detection.descriptor);
 
-    alert("✅ Face captured");
+    setStatus("✅ Face captured");
 
     if(mode === "signup"){
-        scanFingerprintSignup();
+        signupProcess();
     } else {
         verifyFaceLogin();
     }
 }
 
 // =======================
-// SIGNUP FLOW
+// SIGNUP
 // =======================
-async function scanFingerprintSignup(){
+async function signupProcess(){
 
     const fingerprint = await scanFingerprint();
     if(!fingerprint) return;
+
+    setStatus("Saving account...");
 
     const res = await fetch('/signup',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-            username: usernameInput(),
-            password: passwordInput(),
-            face: savedFace,
+            username:getUser(),
+            password:getPass(),
+            face:savedFace,
             fingerprint
         })
     });
@@ -165,40 +221,42 @@ async function scanFingerprintSignup(){
     const data = await res.json();
 
     if(data.success){
-        alert("🎉 Signup complete!");
+        setStatus("🎉 Signup complete!");
     } else {
-        alert("Signup failed");
+        setStatus("❌ Signup failed");
     }
 }
 
 // =======================
-// LOGIN FACE CHECK
+// FACE CHECK
 // =======================
 async function verifyFaceLogin(){
+
+    setStatus("Checking face...");
 
     const res = await fetch('/login-face',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-            username: usernameInput(),
-            face: savedFace
+            username:getUser(),
+            face:savedFace
         })
     });
 
     const data = await res.json();
 
     if(!data.success){
-        alert("❌ Face not matched");
+        setStatus("❌ Face not matched");
         return;
     }
 
-    alert("✅ Face matched");
+    setStatus("✅ Face matched");
 
     verifyFingerprintLogin();
 }
 
 // =======================
-// LOGIN FINGERPRINT
+// FINAL LOGIN SUCCESS SCREEN
 // =======================
 async function verifyFingerprintLogin(){
 
@@ -209,7 +267,7 @@ async function verifyFingerprintLogin(){
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-            username: usernameInput(),
+            username:getUser(),
             fingerprint
         })
     });
@@ -217,35 +275,37 @@ async function verifyFingerprintLogin(){
     const data = await res.json();
 
     if(data.success){
-        alert("✅ Login success!");
+
+        // 🔥 FULL SCREEN SUCCESS
+        document.body.innerHTML = `
+        <div style="
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            height:100vh;
+            background:#00c853;
+            color:white;
+            font-size:30px;
+            font-family:Arial;
+            text-align:center;
+        ">
+            LOGIN SUCCESSFUL ✅
+        </div>
+        `;
+
     } else {
-        alert("❌ Fingerprint mismatch");
+        setStatus("❌ Fingerprint mismatch");
     }
 }
 
 // =======================
-// FINGERPRINT (LOCAL)
-// =======================
-async function scanFingerprint(){
-    try{
-        const res = await fetch('http://localhost:5000/scan-fingerprint');
-        const data = await res.json();
-
-        if(data.success){
-            alert("Fingerprint captured");
-            return data.template;
-        }
-    }catch{
-        alert("Fingerprint server not running");
-    }
-    return null;
-}
-
 // HELPERS
-function usernameInput(){
+// =======================
+function getUser(){
     return document.getElementById("username").value;
 }
-function passwordInput(){
+
+function getPass(){
     return document.getElementById("password").value;
 }
 

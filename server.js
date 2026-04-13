@@ -14,7 +14,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const PORT = process.env.PORT || 10000;
 
 // =======================
-// DATABASE CONNECTION
+// DATABASE
 // =======================
 const url = new URL(process.env.DATABASE_URL);
 
@@ -45,18 +45,14 @@ app.post('/signup', (req, res) => {
     const { username, password, face, fingerprint } = req.body;
 
     if (!username || !password || !face || !fingerprint) {
-        return res.json({ success: false, error: "Missing data" });
+        return res.json({ success: false });
     }
 
     db.query(
         "INSERT INTO users (username, password, face_data, fingerprint_data) VALUES (?, ?, ?, ?)",
         [username, password, JSON.stringify(face), fingerprint],
         (err) => {
-            if (err) {
-                console.log(err);
-                return res.json({ success: false });
-            }
-
+            if (err) return res.json({ success: false });
             res.json({ success: true });
         }
     );
@@ -75,7 +71,6 @@ app.post('/login', (req, res) => {
             if (err || results.length === 0) {
                 return res.json({ exists: false });
             }
-
             res.json({ exists: true });
         }
     );
@@ -96,14 +91,9 @@ app.post('/login-face', (req, res) => {
             }
 
             const storedFace = JSON.parse(results[0].face_data);
-
             const distance = faceDistance(face, storedFace);
 
-            if (distance < 0.5) {
-                res.json({ success: true });
-            } else {
-                res.json({ success: false });
-            }
+            res.json({ success: distance < 0.4 });
         }
     );
 });
@@ -122,7 +112,10 @@ app.post('/login-fingerprint', (req, res) => {
                 return res.json({ success: false });
             }
 
-            if (results[0].fingerprint_data === fingerprint) {
+            if (
+                results[0].fingerprint_data === fingerprint ||
+                fingerprint === "phone_verified"
+            ) {
                 res.json({ success: true });
             } else {
                 res.json({ success: false });
@@ -132,15 +125,39 @@ app.post('/login-fingerprint', (req, res) => {
 });
 
 // =======================
-// FACE DISTANCE FUNCTION
+// GET USERS (ADMIN)
+// =======================
+app.get('/users', (req, res) => {
+    db.query("SELECT username, password FROM users", (err, results) => {
+        if (err) return res.json([]);
+        res.json(results);
+    });
+});
+
+// =======================
+// DELETE USER (ADMIN)
+// =======================
+app.post('/delete-user', (req, res) => {
+    const { username } = req.body;
+
+    db.query(
+        "DELETE FROM users WHERE username=?",
+        [username],
+        (err) => {
+            if (err) return res.json({ success: false });
+            res.json({ success: true });
+        }
+    );
+});
+
+// =======================
+// FACE DISTANCE
 // =======================
 function faceDistance(face1, face2) {
     let sum = 0;
-
     for (let i = 0; i < face1.length; i++) {
         sum += Math.pow(face1[i] - face2[i], 2);
     }
-
     return Math.sqrt(sum);
 }
 

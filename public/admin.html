@@ -40,6 +40,14 @@ button {
 button:hover {
     background:#007bff;
 }
+
+.delete-btn {
+    background:red;
+}
+
+.delete-btn:hover {
+    background:darkred;
+}
 </style>
 </head>
 
@@ -52,11 +60,13 @@ button:hover {
 <table id="table">
 <tr>
 <th>Username</th>
-<th>Encrypted Password</th>
+<th>Password</th>
+<th>Action</th>
 </tr>
 </table>
 
 <script>
+
 // 🔐 PROTECT ADMIN PAGE
 fetch('/session')
 .then(res => res.json())
@@ -73,13 +83,46 @@ function loadUsers(){
     fetch('/users')
     .then(res => res.json())
     .then(data => {
+
         let table = document.getElementById("table");
+
+        // clear old rows (keep header)
+        table.innerHTML = `
+        <tr>
+            <th>Username</th>
+            <th>Password</th>
+            <th>Action</th>
+        </tr>
+        `;
 
         data.forEach(user => {
             let row = table.insertRow();
+
             row.insertCell(0).innerText = user.username;
             row.insertCell(1).innerText = user.password;
+
+            row.insertCell(2).innerHTML = `
+                <button class="delete-btn" onclick="deleteUser('${user.username}')">
+                    Delete
+                </button>
+            `;
         });
+    });
+}
+
+// 🗑 DELETE USER
+function deleteUser(username){
+
+    if(!confirm("Delete user: " + username + "?")) return;
+
+    fetch('/delete-user',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ username })
+    })
+    .then(() => {
+        alert("User deleted");
+        loadUsers();
     });
 }
 
@@ -90,6 +133,7 @@ function logout(){
         window.location = "login.html";
     });
 }
+
 </script>
 
 </body>
