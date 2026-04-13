@@ -16,14 +16,12 @@ const PORT = process.env.PORT || 10000;
 // =======================
 // DATABASE
 // =======================
-const url = new URL(process.env.DATABASE_URL);
-
 const db = mysql.createConnection({
-    host: url.hostname,
-    user: url.username,
-    password: url.password,
-    database: url.pathname.replace('/', ''),
-    port: url.port
+    host: "localhost",
+    user: "root",
+    password: "", // change if you have password
+    database: "MySQL",
+    port: 3306
 });
 
 db.connect(err => {

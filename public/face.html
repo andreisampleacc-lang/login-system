@@ -50,9 +50,9 @@ async function load(){
 
         const MODEL_URL = window.location.origin + "/models";
 
-await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL + '/tiny_face_detector');
-await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL + '/face_landmark_68');
-await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL + '/face_recognition');
+await faceapi.nets.tinyFaceDetector.loadFromUri('/models/tiny_face_detector')
+await faceapi.nets.faceLandmark68Net.loadFromUri('/models/face_landmark_68')
+await faceapi.nets.faceRecognitionNet.loadFromUri('/models/face_recognition')
         status.innerText = "✅ Models loaded";
 
         setTimeout(startCamera, 1000);
